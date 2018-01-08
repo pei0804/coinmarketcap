@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"google.golang.org/appengine"
+	"google.golang.org/appengine/urlfetch"
 )
 
 // Client is a client for talking to the coinmarketcap API.
@@ -14,6 +17,7 @@ type Client struct {
 	requestPerMinute int
 	ratelimit        chan bool
 	quit             chan bool
+	appengineClient  *http.Client
 }
 
 // BaseURL will define a new base URL. You would probably never use this.
@@ -36,6 +40,12 @@ func GraphBaseURL(graphBaseURL string) func(*Client) {
 func RateLimit(requestPerMinute int) func(*Client) {
 	return func(c *Client) {
 		c.requestPerMinute = requestPerMinute
+	}
+}
+
+func AppEngine(r *http.Request) func(*Client) {
+	return func(c *Client) {
+		c.appengineClient = urlfetch.Client(appengine.NewContext(r))
 	}
 }
 
@@ -164,5 +174,8 @@ func (c *Client) Graph(currency string, from time.Time, to time.Time) (*GraphDat
 func (c *Client) get(URL string) (*http.Response, error) {
 	<-c.ratelimit
 
+	if c.appengineClient != nil {
+		return c.appengineClient.Get(URL)
+	}
 	return http.Get(URL)
 }
